@@ -1,0 +1,333 @@
+<html>
+<head>
+<style>
+body {background:#333}
+canvas {
+	background:
+						 linear-gradient(to right,rgba(192,192,192,0.75),rgba(192,192,192,0.75)),
+						 linear-gradient(to right,black 50%,white 50%),
+						 linear-gradient(to bottom,black 50%,white 50%);
+	background-blend-mode:normal,difference,normal;
+	background-size:20px 20px
+}
+#paint_app {margin-left:auto;margin-right:auto;width:500px}
+.placeholder {position:absolute;z-index:999}
+</style>
+</head>
+<body>
+<div id="paint_app"/>
+<script>
+createPaint=p=>{//the core of the program;appends the paint interface to the DOM element given as an argument (parent)
+	let canvas = elt('canvas',{width:500,height:300}),cx = canvas.getContext('2d'),toolbar = elt('div',{class:'toolbar'});
+	canvas.addEventListener("contextmenu",e=>{if(e.which == 3){e.preventDefault;return false}});
+	for (let name in controls)toolbar.append(controls[name](cx));//calls the every function in controls,passing in context,then appending the returned results to the toolbar
+	p.append(toolbar);
+	p.append(elt('div',{class:'picturepanel'},canvas));
+}
+//helper functions
+function elt(name,attributes){
+	let node = document.createElement(name);
+	if(attributes)for(let attr in attributes)if(attributes.hasOwnProperty(attr))node.setAttribute(attr,attributes[attr]);
+	for (let i = 2;i < arguments.length;i++){
+		let child = arguments[i];
+		if (typeof child == 'string')child = document.createTextNode(child);//if this argument is a string,create a text node
+		node.append(child);
+	}
+	return node;
+}
+relativePos=(e,el)=>{let rect = el.getBoundingClientRect();return{x:~~(e.clientX-rect.left),y:~~(e.clientY-rect.top)}}//figures out canvas relative coordinates for accurate functionality
+trackDrag=(onMove,onEnd)=>{//registers and unregisters listeners for tools
+	end=e=>{
+		removeEventListener('mousedown',onMove);
+		removeEventListener('mousemove',onMove);
+		removeEventListener('mouseup',end);
+		if(onEnd)onEnd(e);
+	}
+	addEventListener('mousedown',onMove);
+	addEventListener('mousemove',onMove);
+	addEventListener('mouseup',end);
+}
+loadImageURL=(cx,url)=>{//loads an image from a URL and replaces the contents of the canvas
+	let image = document.createElement('img');
+	image.addEventListener('load',()=>{
+		let color = cx.fillStyle,size = cx.lineWidth;
+		cx.canvas.width = image.width;
+		cx.canvas.height = image.height;
+		cx.drawImage(image,0,0);
+		cx.fillStyle = color;
+		cx.strokeStyle = color;
+		cx.lineWidth = size;
+	});
+	image.src = url;
+}
+randomPointInRadius=r=>{//used by tools.Spray, randomly positions dots
+	for (;;){
+		let x = Math.random() * 2 - 1,y = Math.random() * 2 - 1;if (x*x+y*y<=1)return {x:x*r,y:y*r};//uses the Pythagorean theorem to test if a point is inside a circle
+	}
+}
+rgba2hex=x=>{rgba = x.replace(/^rgba?\(|\s+|\)$/g, '').split(',');return `#${((1 << 24) + (parseInt(rgba[0]) << 16) + (parseInt(rgba[1]) << 8) + parseInt(rgba[2])).toString(16).slice(1)}`}
+canvasCursor=(el,cr)=>{el.style.cursor = cr}
+//controls
+let controls = {};//holds static methods to init Various controls;
+controls.tool=cx=>{
+	let select = elt('select');
+	for (let name in tools)select.append(elt('option',null,name));
+	cx.canvas.addEventListener('mousedown',e=>{
+		if (e.which == 1 || e.which == 3){tools[select.value](e,cx);e.preventDefault()}
+	});
+	return elt('span',null,'Tool:',select);
+};
+controls.color=cx=>{
+	var inputColor1 = elt('input',{type:'color',value:'#000000',id:'inputColor1'}),
+			inputColor2 = elt('input',{type:'color',value:'#ffffff',id:'inputColor2'});
+	inputColor1.addEventListener('change',()=>{cx.fillStyle=cx.strokeStyle=inputColor1.style.background=inputColor1.value});
+	inputColor2.addEventListener('change',()=>{cx.fillStyle=cx.strokeStyle=inputColor2.style.background=inputColor2.value});
+	return elt('span',null,'Color:',inputColor1,inputColor2);
+};
+controls.brushSize=cx=>{
+	let select = elt('select');
+	let sizes = [1,2,3,5,8,12,25,35,50,75,100];//Various brush sizes
+	sizes.forEach(size=>{select.append(elt('option',{value:size},size + 'px'))});//build up a select group of size options
+	select.addEventListener('change',()=>{cx.lineWidth = select.value});
+	return elt('span',null,'Brush size:',select);
+};
+controls.resAdjust=cx=>{
+	let canvasWidthInput = elt('input',{type:'text',placeholder:'Width',value:'500'}),
+			canvasHeightInput = elt('input',{type:'text',placeholder:'Height',value:'300'});
+	canvasWidthInput.addEventListener('input',x=>{cx.canvas.width=canvasWidthInput.value});
+	canvasHeightInput.addEventListener('input',x=>{cx.canvas.height=canvasHeightInput.value});
+	return elt('span',null,canvasWidthInput,canvasHeightInput);
+}
+controls.save=cx=>{
+	let link = elt('a',{href:'/',target:'_blank'},'Save');//MUST open in a new window because of iframe security stuff
+	update=()=>{
+		try {
+			link.href = cx.canvas.toDataURL("image/png");
+		} catch(e){
+			//some browsers choke on big data URLs
+			//also,if the server response doesn't include a header that tells the browser it
+			//can be used on other domains,the script won't be able to look at it;
+			//this is in order to prevent private information from leaking to a script;
+			//pixel data,data URL or otherwise,cannot be extracted from a "tainted canvas"
+			//and a SecurityError is thrown
+		//if (e instanceof SecurityError){link.href = 'javascript:alert('+JSON.stringify('Can\'t save:'+e.toString())+')'}
+		//else{
+				throw e;
+		//}
+		}
+	}
+	link.addEventListener('mouseover',update);
+	link.addEventListener('focus',update);
+	return link;
+};
+controls.openFile=cx=>{
+	let input = elt('input',{type:'file'});
+	input.addEventListener('change',()=>{
+		if (input.files.length == 0) return;
+		let fr = new FileReader();
+		fr.addEventListener('load',()=>{loadImageURL(cx,fr.result)});
+		fr.readAsDataURL(input.files[0]);
+	});
+	return elt('div',null,'Open file:',input);
+};
+controls.openURL=cx=>{
+	let input = elt('input',{type:'text'});
+	let form = elt('form',null,'Open URL:',input,elt('button',{type:'submit'},'Load'));
+	form.addEventListener('submit',e=>{e.preventDefault();loadImageURL(cx,form.querySelector('input').value)});
+	return form;
+};
+//Tools
+let tools = {};
+tools.Brush=(e,cx,onEnd)=>{
+	canvasCursor(cx.canvas,"crosshair");
+	cx.lineCap = 'round';
+	let pos = relativePos(e,cx.canvas);
+	trackDrag(e=>{
+		cx.beginPath();
+		cx.moveTo(pos.x,pos.y);
+		pos = relativePos(e,cx.canvas);
+		cx.lineTo(pos.x,pos.y);
+		cx.stroke();
+	},onEnd);
+};
+tools.Erase=(e,cx)=>{
+	//globalCompositeOperation determines how drawing operations
+	//on a canvas affect what's already there
+	//'destination-out' makes pixels transparent,'erasing' them
+	//NOTE:this has been deprecated
+	cx.globalCompositeOperation = 'destination-out';
+	tools.Brush(e,cx,()=>{cx.globalCompositeOperation = 'source-over'});
+};
+tools.Text=(e,cx)=>{
+	canvasCursor(cx.canvas,"");
+	let text = prompt('Text:','');
+	if (text){
+		let pos = relativePos(e,cx.canvas);
+		cx.font = Math.max(7,cx.lineWidth) + 'px sans-serif';//for simplicity,text size is brush size,locked to sans-serif
+		cx.fillText(text,pos.x,pos.y);
+	}
+}
+tools.Spray=(e,cx)=>{
+	canvasCursor(cx.canvas,"");
+	let radius = cx.lineWidth / 2;
+	let area = radius * radius * Math.PI;
+	let dotsPerTick = Math.ceil(area / 30);
+	let curPos = relativePos(e,cx.canvas);
+	let spray = setInterval(()=>{
+		for (let i = 0;i < dotsPerTick;i++){
+			let offset = randomPointInRadius(radius);
+			cx.fillRect(curPos.x + offset.x,curPos.y + offset.y,1,1);
+		}
+	},25);
+	trackDrag(e=>{curPos = relativePos(e,cx.canvas)},()=>{clearInterval(spray)});
+};
+tools['Shape (Rectangle)']=(e,cx)=>{
+	canvasCursor(cx.canvas,"crosshair");
+	let leftX,rightX,topY,bottomY
+	let clientX = e.clientX,clientY = e.clientY;
+	let placeholder = elt('div',{class:'placeholder'});//placeholder rectangle
+	let initPos = relativePos(e,cx.canvas);//cache the relative position of mouse x and y on canvas
+	let xOffset = clientX - initPos.x,yOffset = clientY - initPos.y;//used for determining correct placeholder position
+	trackDrag(e=>{
+		document.body.append(placeholder);
+		let curPos = relativePos(e,cx.canvas);
+		let startX = initPos.x,startY = initPos.y;
+		//assign leftX,rightX,topY and bottomY
+		if (startX < curPos.x){
+			leftX = startX;rightX = curPos.x;
+		} else {
+			leftX = curPos.x;rightX = startX;
+		}
+		if (startY < curPos.y){
+			topY = startY;bottomY = curPos.y;
+		} else {
+			topY = curPos.y;bottomY = startY;
+		}
+		placeholder.style.background = cx.fillStyle;
+		placeholder.style.left = leftX + xOffset + 'px';
+		placeholder.style.top = topY + yOffset + 'px';
+		placeholder.style.width = rightX - leftX + 'px';
+		placeholder.style.height = bottomY - topY + 'px';	
+	},()=>{
+		cx.fillRect(leftX,topY,rightX - leftX,bottomY - topY);
+		document.body.removeChild(placeholder);
+	});
+};
+tools['Shape (Circle, BETA)']=(e,cx)=>{
+	canvasCursor(cx.canvas,"");
+	let RPos,grd,posInit=pos=relativePos(e,cx.canvas)
+	trackDrag(e=>{
+		RPos = Math.abs(posInit.x-pos.x+posInit.y-pos.y);
+		grd = cx.createRadialGradient(posInit.x,posInit.y,0,posInit.x,posInit.y,RPos);
+		grd.addColorStop(0.50,inputColor1.value);grd.addColorStop(0.50,inputColor2.value);
+		pos = relativePos(e,cx.canvas);
+		cx.fillStyle=grd;
+		cx.fillRect(0,0,cx.canvas.width,cx.canvas.height);
+	});
+}
+tools.Colorpicker=(e,cx)=>{//TODO:rewrite with pixel object
+	canvasCursor(cx.canvas,"");
+	let cPos = relativePos(e,cx.canvas),
+			imageData = cx.getImageData(cPos.x,cPos.y,1,1),//returns an array [r,g,b,a];
+			cVals = imageData.data,
+			c = 'rgba(';
+	for (let i = 0;i < cVals.length;i++){
+		c += cVals[i];
+		if (i < 3)c += ',';
+	}
+	c += ')';
+	cx.fillStyle = c;
+	cx.strokeStyle = c;
+		if(e.which == 1){inputColor1.value=rgba2hex(c);inputColor1.style.background=c}
+		if(e.which == 3){inputColor2.value=rgba2hex(c);inputColor2.style.background=c}
+	trackDrag(e=>{
+		let cPos = relativePos(e,cx.canvas),
+				imageData = cx.getImageData(cPos.x,cPos.y,1,1),//returns an array [r,g,b,a];
+				cVals = imageData.data,
+				c = 'rgba(';
+		for(let i = 0;i < cVals.length;i++){c += cVals[i];if (i < 3)c += ','}
+		c += ')';
+		cx.fillStyle=cx.strokeStyle=c;
+		if(e.which == 1){inputColor1.value=rgba2hex(c);inputColor1.style.background=c}
+		if(e.which == 3){inputColor2.value=rgba2hex(c);inputColor2.style.background=c}
+	});
+};
+tools.Fill=(e,cx)=>{
+	canvasCursor(cx.canvas,"");
+	let imageData = cx.getImageData(0,0,cx.canvas.width,cx.canvas.height),
+			sample = relativePos(e,cx.canvas),
+			isPainted = new Array(imageData.width * imageData.height),
+			toPaint = [sample];
+	while(toPaint.length){
+		let cur = toPaint.pop(),id = cur.x + cur.y * imageData.width;
+		if (isPainted[id]) continue;
+		else {cx.fillRect(cur.x,cur.y,1,1);isPainted[id] = true}//if it hasn't,paint cur and set isPainted to true
+		forEachNeighbor(cur,n=>{if (n.x >= 0 && n.x < imageData.width && n.y >= 0 && n.y < imageData.height && isSameColor(imageData,sample,n)){toPaint.push(n)}});//for every neighbor (new function)
+	}
+};
+tools['Gradient (Linear)']=(e,cx)=>{
+	canvasCursor(cx.canvas,"");
+	let grd,posInit=pos=relativePos(e,cx.canvas)
+	trackDrag(e=>{
+		grd = cx.createLinearGradient(posInit.x,posInit.y,pos.x,pos.y);
+		grd.addColorStop(0,inputColor1.value);grd.addColorStop(1,inputColor2.value);
+		pos = relativePos(e,cx.canvas);
+		cx.fillStyle=grd;
+		cx.fillRect(0,0,cx.canvas.width,cx.canvas.height);
+	});
+}
+tools['Gradient (Radial, BETA 1)']=(e,cx)=>{
+	canvasCursor(cx.canvas,"");
+	let RPos,grd,posInit=pos=relativePos(e,cx.canvas)
+	trackDrag(e=>{
+		RPos = Math.abs(posInit.x-pos.x+posInit.y-pos.y);
+		grd = cx.createRadialGradient(posInit.x,posInit.y,0,posInit.x,posInit.y,RPos);
+		grd.addColorStop(0,inputColor1.value);grd.addColorStop(1,inputColor2.value);
+		pos = relativePos(e,cx.canvas);
+		cx.fillStyle=grd;
+		cx.fillRect(0,0,cx.canvas.width,cx.canvas.height);
+	});
+}
+tools['Gradient (Radial, BETA 2)']=(e,cx)=>{
+	canvasCursor(cx.canvas,"");
+	let grd,posInit=pos=relativePos(e,cx.canvas)
+	trackDrag(e=>{
+		grd = cx.createRadialGradient(posInit.x,posInit.y,0,pos.x,pos.y,100);
+		grd.addColorStop(0,inputColor1.value);
+		grd.addColorStop(1,inputColor2.value);
+		pos = relativePos(e,cx.canvas);
+		cx.fillStyle=grd;
+		cx.fillRect(0,0,cx.canvas.width,cx.canvas.height);
+	});
+}
+forEachNeighbor=(p,fn)=>{
+	fn({x:p.x - 1,y:p.y});
+	fn({x:p.x + 1,y:p.y});
+	fn({x:p.x,y:p.y - 1});
+	fn({x:p.x,y:p.y + 1});
+}
+isSameColor=(d,p1,p2)=>{
+	let o1 = (p1.x + p1.y * d.width) * 4,o2 = (p2.x + p2.y * d.width) * 4;
+	for(let i = 0;i < 4;i++)if (d.data[o1 + i] != d.data[o2 + i])return false
+	return true;
+}
+createPaint(paint_app);
+//
+//	MDPaint By MDP43140, original by Marijn Haverbeke (https://eloquentjavascript.net/19_paint.html)
+//
+//	Changelog:
+//	+ First Release.
+//	+ A Lot Of Optimizations Has Been Made.
+//	+ Added Checkerboard Background.
+//	+ Added 2 Color Pallete.
+//	+ Bug Fixed: Color pallete did'nt change when using colorpick.
+//	+ Added Linear Gradient
+//	+ Added Radial Gradient
+//	+ Added click event for canvas tools.
+//	. Added Crosshair Cursor For Brush,Shape(Rect).
+//	- Bug: @L272-283 (Radial Gradient Size, try to point the cursor bottom left/up right while making radial gradient).
+//	- Bug: try to select colorpick tool, then right-click-and-hold while moving the mouse (you will see the color 1 being updating rather than color 2).
+//	
+</script>
+</body>
+</html>
