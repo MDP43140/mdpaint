@@ -1,0 +1,64 @@
+<html>
+<head>
+<meta charset="UTF-8" name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=0">
+<title>MDPaint 0.6.1</title>
+<style>
+body {background:#333}
+#paint_app {margin-left:auto;margin-right:auto;width:500px;background:none}
+.placeholder {position:absolute;z-index:999}
+#paint_app > .picturepanel {
+	max-width:100%;
+	max-height:300px;
+	width:502px;
+	height:302px;
+	border:1px solid #636363;
+	overflow:auto;
+	position:relative;
+	resize:both;
+	scrollbar-width:thin;
+	scrollbar-color:#444 #111;
+}
+#paint_app > .picturepanel > canvas {
+	display:block;
+	background:#fff;
+	background:linear-gradient(to right,rgba(192,192,192,0.75),rgba(192,192,192,0.75)),linear-gradient(to right,black 50%,white 50%),linear-gradient(to bottom,black 50%,white 50%);
+	background-blend-mode:normal,difference,normal;
+	background-size:20px 20px
+}
+#paint_app > .toolbar > * {margin-right:5px}
+.dropbtn{
+	background:#000;
+	color:#fff;
+	padding:5px 16px;
+	font-size:12px;
+	border:1px solid #001733
+}
+.dropbtn:hover{background:#000C1A;border:1px solid #001733}
+.dropbtn:focus{background:#001733;border:1px solid #002E66}
+.dropbtn.bright{color:#000;background:#fff;border:1px solid #CCE8FF}
+.dropbtn.bright:hover{background:#E5F3FF;border:1px solid #CCE8FF}
+.dropbtn.bright:focus{background:#CCE8FF;border:1px solid #99D1FF}
+.dropdown{position:relative;display:inline-block}
+.dropdown-content{
+	display:none;
+	position:absolute;
+	background:#f1f1f1;
+	width:auto;
+	min-width:160px;
+	max-width:220px;
+	overflow:auto;
+	box-shadow:0px 8px 16px #000;
+	z-index:1
+}
+.dropdown-content > *{color:#000;padding:6px;text-decoration:none;display:block;margin:0;border:none;outline:none;cursor:default}
+.dropdown-content *:hover{background:#90C8F6}.dropdown-content.show{display:block}
+
+</style>
+</head>
+<body>
+<div id="paint_app"/>
+<script src="https://polyfill.io/v3/polyfill.js" crossorigin="Anonymous"></script>
+<script src="MDPaint_0.6.1.js"></script>
+<script>new MDPaint().create(paint_app)</script>
+</body>
+</html>
