@@ -91,7 +91,7 @@ controls.tool=cx=>{
 	select.addEventListener('wheel',e=>{
 		e.preventDefault();
 		if (e.deltaY > 0 && select.selectedIndex < select.length-1){select.selectedIndex++}
-		else /*if (e.deltaY < 0 && select.selectedIndex > 0) UNNESSESARY, OPTIMIZED! */{select.selectedIndex--}
+		else if (e.deltaY < 0 && select.selectedIndex > 0){select.selectedIndex--}
 	});
 	window.addEventListener('keydown',e=>{//fix stupid select tool instead of ctrl/shift/alt command
 		if (e.ctrlKey){
