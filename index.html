@@ -3,8 +3,8 @@
 <meta charset="UTF-8" name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=0">
 <title>MDPaint 0.6.1</title>
 <style>
-body {background:#333}
-#paint_app {margin-left:auto;margin-right:auto;width:500px;background:none}
+body {margin:0;color:#eee;background:#333}
+#paint_app {height:100%;background:#454545;display:flex;flex-flow:column;align-items:center}
 .placeholder {position:absolute;z-index:999}
 #paint_app > .picturepanel {
 	max-width:100%;
@@ -19,40 +19,57 @@ body {background:#333}
 	scrollbar-color:#444 #111;
 }
 #paint_app > .picturepanel > canvas {
+	--block-size:1rem;
 	display:block;
-	background:#fff;
+	background-color:#fff;
 	background:linear-gradient(to right,rgba(192,192,192,0.75),rgba(192,192,192,0.75)),linear-gradient(to right,black 50%,white 50%),linear-gradient(to bottom,black 50%,white 50%);
 	background-blend-mode:normal,difference,normal;
-	background-size:20px 20px
+	background-size:var(--block-size) var(--block-size);
+	touch-action:none;user-select:none;user-drag:none;
 }
-#paint_app > .toolbar > * {margin-right:5px}
-.dropbtn{
+#paint_app > .toolbar {width:500px}
+#paint_app > .toolbar > * {margin-right:5px;display:inline-block}
+#paint_app > .toolbar :is(select,input) {background:#222;border:none;color:#fff;}
+#paint_app > .toolbar select.toolPicker {max-width:5rem}
+#paint_app > .toolbar input.inputnum-res-adjust {font-size:1rem;max-width:5rem}
+#paint_app > .toolbar input[type=color] {border:none;padding:0px;margin:0px;width:2rem;height:2rem}
+#paint_app > .toolbar .dropdown{position:relative;display:inline-block}
+#paint_app > .toolbar .dropdown > .dropbtn{
 	background:#000;
 	color:#fff;
 	padding:5px 16px;
 	font-size:12px;
 	border:1px solid #001733
 }
-.dropbtn:hover{background:#000C1A;border:1px solid #001733}
-.dropbtn:focus{background:#001733;border:1px solid #002E66}
-.dropbtn.bright{color:#000;background:#fff;border:1px solid #CCE8FF}
-.dropbtn.bright:hover{background:#E5F3FF;border:1px solid #CCE8FF}
-.dropbtn.bright:focus{background:#CCE8FF;border:1px solid #99D1FF}
-.dropdown{position:relative;display:inline-block}
-.dropdown-content{
+#paint_app > .toolbar .dropdown > .dropbtn:hover{background:#000C1A;border:1px solid #001733}
+#paint_app > .toolbar .dropdown > .dropbtn:focus{background:#001733;border:1px solid #002E66}
+#paint_app > .toolbar .dropdown > .dropdown-content{
 	display:none;
 	position:absolute;
-	background:#f1f1f1;
+	color:#eee;
+	background:#484848;
 	width:auto;
 	min-width:160px;
 	max-width:220px;
-	overflow:auto;
+	max-height:20rem;
+	overflow:hidden scroll;
 	box-shadow:0px 8px 16px #000;
 	z-index:1
 }
-.dropdown-content > *{color:#000;padding:6px;text-decoration:none;display:block;margin:0;border:none;outline:none;cursor:default}
-.dropdown-content *:hover{background:#90C8F6}.dropdown-content.show{display:block}
-
+#paint_app > .toolbar .dropdown-content > * {
+	color:inherit;
+	background:none;
+	padding:6px;
+	text-decoration:none;
+	display:block;
+	margin:0;
+	border:none;
+	outline:none;
+	cursor:default;
+	width:100%;
+	text-align:left;
+	box-shadow:none
+}
 </style>
 </head>
 <body>
